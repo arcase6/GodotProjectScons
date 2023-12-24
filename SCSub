@@ -1,0 +1,12 @@
+import os
+
+Import("ext_env")
+
+ext_env.additional_targets += ext_env.write_gdextension_file("duplicate_to_drag")
+ext_env.additional_targets += ext_env.write_gdignore_file(Dir("bin"))
+
+ext_env.Append(CPPPATH=[os.path.join(os.getcwd(), "src")])
+#ext_env.Append(CPPPATH=[os."src")])
+ext_env.extension_sources = ext_env.glob_recursive("*.cpp", os.path.join(os.getcwd(), "src"))
+
+Return("ext_env")
