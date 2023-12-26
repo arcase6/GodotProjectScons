@@ -97,7 +97,14 @@ def add_to_vs_project(env, sources):
 
 
 # generate vs project for extension - modified from godot engine sconstruct
-def generate_vs_project(env, original_args, project_name, project_sources, header_directories):
+def generate_vs_project(original_env, original_args, project_path, project_sources = [], header_directories = [], binary_root = "bin", binary_prefix = "" ,binary_ext = "dll"):
+    env = original_env.Clone()
+    if not os.path.isabs(binary_root):
+        binary_root = os.path.join(os.path.dirname(project_path), binary_root)
+    if binary_prefix == "":
+        binary_prefix = os.path.basename(project_path)
+
+    
     batch_file = find_visual_c_batch_file(env)
     filtered_args = original_args.copy()
     # Ignore the "vsproj" option to not regenerate the VS project on every build
@@ -155,8 +162,10 @@ def generate_vs_project(env, original_args, project_name, project_sources, heade
                     for config in ModuleConfigs.CONFIGURATIONS
                     for platform in ModuleConfigs.PLATFORMS
                 ]
+                #TODO: Do I need to add double handling to binary like godot.ext does? Maybe not?
                 self.arg_dict["runfile"] += [
-                    f'bin\\godot.windows.{config}{ModuleConfigs.DEV_SUFFIX}{".double" if "precision" in env and env["precision"] == "double" else ""}.{plat_id}{f".{name}" if name else ""}.exe'
+                    # This pattern must match windows binary file that is being produced for configuration
+                    f"{binary_root}\\{binary_prefix}.windows.{config}.{plat_id}.{binary_ext}"
                     for config in ModuleConfigs.CONFIGURATIONS
                     for plat_id in ModuleConfigs.PLATFORM_IDS
                 ]
@@ -210,8 +219,7 @@ def generate_vs_project(env, original_args, project_name, project_sources, heade
         add_to_vs_project(env, project_sources)
 
         for header_dir in header_directories:
-            for header in glob_recursive("/**/*.h", header_dir):
-                env.vs_incs.append(str(header))
+            add_to_vs_project(env, glob_recursive("/**/*.h", header_dir))
 
         module_configs = ModuleConfigs()
 
@@ -233,7 +241,7 @@ def generate_vs_project(env, original_args, project_name, project_sources, heade
 
         env.Tool("msvs")
         project_targets += [env.MSVSProject(
-            target=[project_name + env.get("MSVSPROJECTSUFFIX", ".vcxproj")],
+            target=[project_path + env.get("MSVSPROJECTSUFFIX", ".vcxproj")],
             incs=env.vs_incs,
             srcs=env.vs_srcs,
             auto_build_solution=env.get("auto_build_solution", False),
@@ -257,10 +265,9 @@ def generate_vs_solution(env, original_args, solution_name, projects_to_include)
 
     solutions_generated = []
     if batch_file:
-        class ModuleConfigs(Mapping):
+        class ModuleConfigs():
             PLATFORMS = ["Win32", "x64"]
             CONFIGURATIONS = ["editor", "template_release", "template_debug"]
-            
         
         if not env.get("MSVS"):
             env["MSVS"]["PROJECTSUFFIX"] = ".vcxproj"
@@ -269,10 +276,16 @@ def generate_vs_solution(env, original_args, solution_name, projects_to_include)
 
         env.Tool("msvs")
         
+        module_configs = ModuleConfigs()
+        if env.get("module_mono_enabled"):
+            for i in range(len(module_configs.CONFIGURATIONS)-1,-1,-1):
+                module_configs.CONFIGURATIONS.insert(i+1, module_configs.CONFIGURATIONS[i] + "_[mono]")
+
+
         solutions_generated += [env.MSVSSolution(
             target=["#" + solution_name + env.get("MSVSSOLUTIONSUFFIX", ".sln")],
             projects = projects_to_include,
-            variant = ["{0}|{1}".format(variants[0], variants[1]) for variants in itertools.product(ModuleConfigs.CONFIGURATIONS, ModuleConfigs.PLATFORMS)] #todo figure out variant and how  module config fits in
+            variant = ["{0}|{1}".format(variants[0], variants[1]) for variants in itertools.product(module_configs.CONFIGURATIONS, module_configs.PLATFORMS)] #todo figure out variant and how  module config fits in
         )]
         pass
     else:
@@ -332,6 +345,7 @@ def get_options(env, customs, args):
     opts.Add("solution_name", "Name of the Visual Studio solution", os.path.basename(os.getcwd()))
     opts.Add("cpp_extension_root", "Directory of cpp extension", get_cpp_extension_root(os.getcwd()))
     opts.Add("godot_source_root", "Directory of godot source code", get_godot_engine_source_root(os.getcwd()))
+    opts.Add(BoolVariable("module_mono_enabled", "Set to true to enable mono module", False))
     return opts
 
 def write_gd_extension_text(env, f, extension_name):

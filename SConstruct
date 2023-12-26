@@ -31,7 +31,13 @@ if env["vsproj"]:
     add_sources("src/classes", "cpp")
     add_sources("src/core", "cpp")
     add_sources("src/variant", "cpp")
-    projects_to_build.append([os.path.join(env["cpp_extension_root"], "godot-cpp"), godot_cpp_sources, [env["cpp_extension_root"]] ])  
+    projects_to_build.append({
+        "project_path" : os.path.join(env["cpp_extension_root"], "godot-cpp"),
+        "project_sources" : godot_cpp_sources,
+        "header_directories" : [env["cpp_extension_root"]],
+        "binary_prefix" : "libgodot-cpp", #todo: maybe want a better way of sensing this? Might not be feasible since I don't have control over godot-cpp naming conventions...
+        "binary_ext" : "lib", # todo: need to dynamically set this to dll or lib based on godot-cpp build options 
+    })  
 
 
 # find all extensions under project root and build them as sub projects - generate vs projects if desired
@@ -39,9 +45,13 @@ extension_source_directories = SConstructCommon.get_extenstion_source_directorie
 default_args = []
 env.glob_recursive = SConstructCommon.glob_recursive
 SConstructCommon.register_builders(env)
+env["binary_root"] = "bin"
+env["binary_ext"] = "dll"
 for directory in extension_source_directories:
     ext_env = env.Clone()
     ext_env.additional_targets = []
+    ext_env["binary_prefix"] = os.path.basename(directory)
+
     ext_env = SConscript(os.path.join(directory, "SCSub"), exports="ext_env")
     extension_sources = []
     for f in ext_env.extension_sources:
@@ -70,7 +80,15 @@ for directory in extension_source_directories:
                             #env["cpp_extension_root"],
                             #env["godot_source_root"],
                             ]
-        projects_to_build += [[os.path.join(directory, ext_name), extension_sources, header_directories]]
+        projects_to_build.append ({
+            "project_path" : os.path.join(directory, ext_name),
+            "project_sources" : extension_sources,
+            "header_directories" : header_directories,
+            "binary_prefix" : "godot-libgodot-cpp", #todo: maybe want a better way of sensing this? Might not be feasible since I don't have control over godot-cpp naming conventions...
+            "binary_root" : ext_env["binary_root"],
+            "binary_prefix" : ext_env["binary_prefix"],
+            "binary_ext" : ext_env["binary_ext"] #SCSub can change binary_ext to lib or dll - dll by default
+            })
 
 
 ## create a vsproj with the source files
@@ -84,10 +102,10 @@ if env["vsproj"]:
     env["auto_build_solution"] = False
     projects = []
 
-    for project in projects_to_build:
+    for project_kwargs in projects_to_build:
         env.vs_incs = []
         env.vs_srcs = []
-        projects += SConstructCommon.generate_vs_project(env, original_args, *project)
+        projects += SConstructCommon.generate_vs_project(env, original_args, **project_kwargs)
         default_args += projects
     #TODO: Add this hint file to the projects that are generated
     #SConstructCommon.generate_cpp_hint_file("cpp.hint")
