@@ -62,16 +62,20 @@ for directory in extension_source_directories:
     default_args += ext_env.additional_targets;
     # build extension binaries
     ext_name = os.path.basename(directory)
+    if ext_env["target"] == "debug":
+        ext_env.Append(CPPDEFINES=["DEBUG_ENABLED", "DEBUG_METHODS_ENABLED"])
+
     if env["platform"] == "macos":
         library = ext_env.SharedLibrary(
-            f"bin/{ext_name}.{ext_env['platform']}.{ext_env['target']}.framework/{ext_name}.{ext_env['platform']}.{ext_env['target']}",
+            os.path.join(directory, f"bin/{ext_name}.{ext_env['platform']}.{ext_env['target']}.framework/{ext_name}.{ext_env['platform']}.{ext_env['target']}"),
             source= extension_sources,
         )
     else:
         library = ext_env.SharedLibrary(
-            f"bin/{ext_name}{ext_env['suffix']}{ext_env['SHLIBSUFFIX']}",
+            os.path.join(directory, f"bin/{ext_name}{ext_env['suffix']}{ext_env['SHLIBSUFFIX']}"),
             source= extension_sources,
         )
+    print(f"target library: {str(library)}")
     default_args += [library]
 
     # add the project as a project to build
@@ -110,6 +114,8 @@ if env["vsproj"]:
     #TODO: Add this hint file to the projects that are generated
     #SConstructCommon.generate_cpp_hint_file("cpp.hint")
 
+    if(env["force_rebuild_vsproj"]):
+        env.AlwaysBuild(projects)
 
     #TODO: Build a project with extra configuration
 
@@ -118,7 +124,11 @@ if env["vsproj"]:
         projects = [os.path.join(env["godot_source_root"], "godot.vcxproj")] + projects 
 
     # generate single solution containing all projects
-    default_args += SConstructCommon.generate_vs_solution(env, original_args, env["solution_name"], projects)
+    solution = SConstructCommon.generate_vs_solution(env, original_args, env["solution_name"], projects)
+    
+    if(env["force_rebuild_vsproj"]):
+        env.AlwaysBuild(solution)
+    default_args += solution
 else:
     print("skipping vsproj generation")
 

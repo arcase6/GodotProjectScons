@@ -117,6 +117,9 @@ def generate_vs_project(original_env, original_args, project_path, project_sourc
     filtered_args.pop("progress", None)
 
     project_targets = []
+
+    #TODO: Maybe add this as a mode to mono/non-mono? For now just add options if originally built with dev_build - also need to unhard code from run file
+    cli_base_args = ["dev_build=yes"] if env["dev_build"] else []
     if batch_file:
 
         class ModuleConfigs(Mapping):
@@ -149,7 +152,7 @@ def generate_vs_project(original_env, original_args, project_path, project_sourc
                 self,
                 name: str = "",
                 includes: str = "",
-                cli_args: str = "",
+                cli_args: list[str] = [],
                 defines=None,
             ):
                 if defines is None:
@@ -162,16 +165,22 @@ def generate_vs_project(original_env, original_args, project_path, project_sourc
                     for config in ModuleConfigs.CONFIGURATIONS
                     for platform in ModuleConfigs.PLATFORMS
                 ]
+                dev_suffix = "dev." if env["dev_build"] else ""
                 #TODO: Do I need to add double handling to binary like godot.ext does? Maybe not?
                 self.arg_dict["runfile"] += [
                     # This pattern must match windows binary file that is being produced for configuration
-                    f"{binary_root}\\{binary_prefix}.windows.{config}.{plat_id}.{binary_ext}"
+                    f"{binary_root}\\{binary_prefix}.windows.{config}.{dev_suffix}{plat_id}.{binary_ext}"
                     for config in ModuleConfigs.CONFIGURATIONS
                     for plat_id in ModuleConfigs.PLATFORM_IDS
                 ]
                 self.arg_dict["cpppaths"] += ModuleConfigs.for_every_variant(env["CPPPATH"] + [includes])
                 self.arg_dict["cppdefines"] += ModuleConfigs.for_every_variant(list(env["CPPDEFINES"]) + defines)
-                self.arg_dict["cmdargs"] += ModuleConfigs.for_every_variant(cli_args)
+                #self.arg_dict["cmdargs"] += ModuleConfigs.for_every_variant(cli_args)
+                self.arg_dict["cmdargs"] += [
+                    " ".join(cli_base_args + cli_args + [f"target={config}", f'platform=windows', f'arch={platform}']) #hard-coded platform to windows since vs is only on windows
+                    for config in ModuleConfigs.CONFIGURATIONS
+                    for platform in ModuleConfigs.PLATFORM_IDS
+                ]
 
             def build_commandline(self, commands):
                 configuration_getter = (
@@ -227,7 +236,7 @@ def generate_vs_project(original_env, original_args, project_path, project_sourc
             mono_defines = [("GD_MONO_HOT_RELOAD",)] if env.editor_build else []
             module_configs.add_mode(
                 "mono",
-                cli_args="module_mono_enabled=yes",
+                cli_args=["module_mono_enabled=yes"],
                 defines=mono_defines,
             )
 
@@ -342,6 +351,7 @@ def get_extenstion_source_directories(root_directory):
 def get_options(env, customs, args):
     opts = Variables(customs, args)
     opts.Add(BoolVariable("vsproj", "Generate a Visual Studio solution", False))
+    opts.Add(BoolVariable("force_rebuild_vsproj", "Force rebuild of VS Project and Solutions even if they haven't changed", False))
     opts.Add("solution_name", "Name of the Visual Studio solution", os.path.basename(os.getcwd()))
     opts.Add("cpp_extension_root", "Directory of cpp extension", get_cpp_extension_root(os.getcwd()))
     opts.Add("godot_source_root", "Directory of godot source code", get_godot_engine_source_root(os.getcwd()))
