@@ -17,6 +17,9 @@ for key in opts.keys():
     if key in ARGUMENTS:
         del ARGUMENTS[key]
 env = SConscript(os.path.join(env["cpp_extension_root"], "SConstruct"))
+godot_cpp_targets = DEFAULT_TARGETS
+env.Alias("godot-cpp", godot_cpp_targets)
+
 
 # add godot-cpp as first project if it extists
 projects_to_build = []
@@ -75,6 +78,7 @@ for directory in extension_source_directories:
             os.path.join(directory, f"bin/{ext_name}{ext_env['suffix']}{ext_env['SHLIBSUFFIX']}"),
             source= extension_sources,
         )
+    env.Alias(f"{ext_name}", library)
     print(f"target library: {str(library)}")
     default_args += [library]
 

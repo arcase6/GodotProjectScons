@@ -169,7 +169,8 @@ def generate_vs_project(original_env, original_args, project_path, project_sourc
                 #TODO: Do I need to add double handling to binary like godot.ext does? Maybe not?
                 self.arg_dict["runfile"] += [
                     # This pattern must match windows binary file that is being produced for configuration
-                    f"{binary_root}\\{binary_prefix}.windows.{config}.{dev_suffix}{plat_id}.{binary_ext}"
+                    #f"{binary_root}\\{binary_prefix}.windows.{config}.{dev_suffix}{plat_id}.{binary_ext}"
+                    os.path.basename(project_path)
                     for config in ModuleConfigs.CONFIGURATIONS
                     for plat_id in ModuleConfigs.PLATFORM_IDS
                 ]
