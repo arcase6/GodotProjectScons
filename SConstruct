@@ -24,6 +24,7 @@ env.Alias("godot-cpp", godot_cpp_targets)
 # add godot-cpp as first project if it extists
 projects_to_build = []
 if env["vsproj"]:
+    env.Tool("msvs")
     godot_cpp_sources = []
     def add_sources(dir, extension):
         abs_path = os.path.join(env["cpp_extension_root"], dir)
@@ -39,7 +40,8 @@ if env["vsproj"]:
         "project_sources" : godot_cpp_sources,
         "header_directories" : [env["cpp_extension_root"]],
         "binary_prefix" : "libgodot-cpp", #todo: maybe want a better way of sensing this? Might not be feasible since I don't have control over godot-cpp naming conventions...
-        "binary_ext" : "lib", # todo: need to dynamically set this to dll or lib based on godot-cpp build options 
+        "binary_ext" : "lib", # todo: need to dynamically set this to dll or lib based on godot-cpp build options
+        "env" : env
     })  
 
 
@@ -84,6 +86,8 @@ for directory in extension_source_directories:
 
     # add the project as a project to build
     if ext_env["vsproj"]:
+        ext_env['MSVSSCONSCRIPT'] = SConstructCommon.CreateAbsFile(env, "SCSub", directory) #path must be relative to extension directory
+        str(ext_env['MSVSSCONSCRIPT'])
         header_directories = [directory, 
                             #env["cpp_extension_root"],
                             #env["godot_source_root"],
@@ -95,25 +99,27 @@ for directory in extension_source_directories:
             "binary_prefix" : "godot-libgodot-cpp", #todo: maybe want a better way of sensing this? Might not be feasible since I don't have control over godot-cpp naming conventions...
             "binary_root" : ext_env["binary_root"],
             "binary_prefix" : ext_env["binary_prefix"],
-            "binary_ext" : ext_env["binary_ext"] #SCSub can change binary_ext to lib or dll - dll by default
+            "binary_ext" : ext_env["binary_ext"], #SCSub can change binary_ext to lib or dll - dll by default
+            "env" : ext_env
             })
 
 
 ## create a vsproj with the source files
-if env["vsproj"]:    
+if env["vsproj"]:
     if os.name != "nt":
         print("Error: The `vsproj` option is only usable on Windows with Visual Studio.")
         Exit(255)
     # TODO: Need to test with multiple extensions. It's possible that multiple extensions could fail to generate vsproject correctly
-    env["CPPPATH"] = [Dir(path) for path in env["CPPPATH"]]
-
-    env["auto_build_solution"] = False
     projects = []
 
     for project_kwargs in projects_to_build:
-        env.vs_incs = []
-        env.vs_srcs = []
-        projects += SConstructCommon.generate_vs_project(env, original_args, **project_kwargs)
+        target_env = env.Clone() if "env" not in project_kwargs else project_kwargs["env"]
+        project_kwargs.pop("env")
+        target_env.vs_incs = []
+        target_env.vs_srcs = []
+        target_env["CPPPATH"] = [Dir(path) for path in env["CPPPATH"]]
+        target_env["auto_build_solution"] = False
+        projects += SConstructCommon.generate_vs_project(target_env, original_args, **project_kwargs)
         default_args += projects
     #TODO: Add this hint file to the projects that are generated
     #SConstructCommon.generate_cpp_hint_file("cpp.hint")

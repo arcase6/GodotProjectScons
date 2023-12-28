@@ -14,6 +14,19 @@ from typing import Iterator
 from os.path import normpath, basename
 import itertools
 
+class AbsFile(SCons.Node.FS.File):
+    def __init__(self, name, directory, fs):
+         super().__init__(name, directory, fs)
+    
+    #override __str__ to return abs path
+    def __str__(self):
+        return self.get_abspath()
+
+def CreateAbsFile(env, name, directory = None, fs = None):
+    if type(directory) == str:
+        directory = env.Dir(directory, fs)
+    return AbsFile(name, directory, fs)
+
 def get_cmdline_bool(option, default):
     """We use `ARGUMENTS.get()` to check if options were manually overridden on the command line,
     and SCons' _text2bool helper to convert them to booleans, otherwise they're handled as strings.
@@ -97,7 +110,7 @@ def add_to_vs_project(env, sources):
 
 
 # generate vs project for extension - modified from godot engine sconstruct
-def generate_vs_project(original_env, original_args, project_path, project_sources = [], header_directories = [], binary_root = "bin", binary_prefix = "" ,binary_ext = "dll"):
+def generate_vs_project(original_env, original_args, project_path = "", project_sources = [], header_directories = [], binary_root = "bin", binary_prefix = "" ,binary_ext = "dll"):
     env = original_env.Clone()
     if not os.path.isabs(binary_root):
         binary_root = os.path.join(os.path.dirname(project_path), binary_root)
@@ -249,7 +262,6 @@ def generate_vs_project(original_env, original_args, project_path, project_sourc
             env["MSVS"]["SOLUTIONSUFFIX"] = ".sln"
         
 
-        env.Tool("msvs")
         project_targets += [env.MSVSProject(
             target=[project_path + env.get("MSVSPROJECTSUFFIX", ".vcxproj")],
             incs=env.vs_incs,
@@ -377,24 +389,26 @@ def write_gd_extension_text(env, f, extension_name):
     writeline('[libraries]')
     writeline('')
 
+    dev_suffix = ".dev" if env["dev_build"] else ""
+
     configs = ["editor", "template_debug", "template_release"]
     def write_variants(s):
         for c in configs:
-            writeline(s.format(extension_base=extension_base, config = c))
+            writeline(s.format(extension_base=extension_base, config = c, dev_suffix = dev_suffix))
 
     if("macos" in ext_platforms):
-        write_variants('macos.{config} = "{extension_base}.macos.{config}.framework"')
+        write_variants('macos.{config} = "{extension_base}.macos.{config}{dev_suffix}.framework"')
     if("Win32" in ext_platforms):
-        write_variants('windows.{config}.x86_32 = "{extension_base}.windows.{config}.x86_32.dll"')
+        write_variants('windows.{config}.x86_32 = "{extension_base}.windows.{config}{dev_suffix}.x86_32.dll"')
     if("Win64" in ext_platforms or "Windows" in ext_platforms):
-        write_variants('windows.{config}.x86_64 = "{extension_base}.windows.{config}.x86_64.dll"')
+        write_variants('windows.{config}.x86_64 = "{extension_base}.windows.{config}{dev_suffix}.x86_64.dll"')
     if("linux" in ext_platforms):
-        write_variants('linux.{config}.x86_64 = "{extension_base}.linux.{config}.x86_64.so"')
-        write_variants('linux.{config}.arm64 = "{extension_base}.linux.{config}.arm64.so"')
-        write_variants('linux.{config}.rv64 = "{extension_base}.linux.{config}.rv64.so"')
+        write_variants('linux.{config}.x86_64 = "{extension_base}.linux.{config}{dev_suffix}.x86_64.so"')
+        write_variants('linux.{config}.arm64 = "{extension_base}.linux.{config}{dev_suffix}.arm64.so"')
+        write_variants('linux.{config}.rv64 = "{extension_base}.linux.{config}{dev_suffix}.rv64.so"')
     if("android" in ext_platforms):
-        write_variants('android.{config}.x86_64 = "{extension_base}.android.{config}.x86_64.so"')
-        write_variants('android.{config}.arm64 = "{extension_base}.android.{config}.arm64.so"')
+        write_variants('android.{config}.x86_64 = "{extension_base}.android.{config}{dev_suffix}.x86_64.so"')
+        write_variants('android.{config}.arm64 = "{extension_base}.android.{config}{dev_suffix}.arm64.so"')
 
 def register_builders(env):
      env['BUILDERS']['write_gdextension_file'] = SCons.Builder.Builder(action=write_gdextension_action, suffix = ".gdextension", emitter = emitter_remove_source)

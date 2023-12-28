@@ -2,7 +2,9 @@ import os
 
 Import("ext_env")
 
-ext_env.additional_targets += ext_env.write_gdextension_file("duplicate_to_drag")
+gdextension_file = ext_env.write_gdextension_file("duplicate_to_drag")
+ext_env.AlwaysBuild(gdextension_file)
+ext_env.additional_targets += gdextension_file
 ext_env.additional_targets += ext_env.write_gdignore_file(Dir("bin"))
 
 ext_env.Append(CPPPATH=[os.path.join(os.getcwd(), "src")])
